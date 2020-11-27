@@ -33,7 +33,7 @@ To see which variables can be assigned to using the command line search
  ### graphing.py
  Run this script without any command line params.
  
- `$ python grpahing.py`
+ `$ python graphing.py`
  
  This file reads `graphing.csv` and generates graphs displaying 
  temperatures, concentrations & rates of reaction, and powers. The 4th 
