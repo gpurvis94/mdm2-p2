@@ -10,15 +10,21 @@ def main(args):
     t_max  = 1800 + t_interval # Not inclusive
     t = np.arange(0, t_max, t_interval)
     
-    # constants values
+    # Containers for values, constants and results
+    # constants c maps a 'str' : value
+    # results r maps a 'str' : [list of results]
     c = {}
     r = { 't' : t }
+    # Define all constants and values for r where t = 0
     initialise_variables(r, c)
     
     # Skip the first value in t as values for 0 are defined
     t_iterator = iter(t)
     next(t_iterator)
     
+    # This is for if you're defining parameters in the command line, eg:
+    # python main.py T_A 30 C_B 100
+    # sets the air temp to 30 and concentration of b to 100
     if len(args) > 1:
         args_iter = iter(args)
         for k in args_iter:
@@ -29,6 +35,7 @@ def main(args):
             else:
                 input(f'idk {k }')
     
+    # Enter the iterative loop
     for dt in t_iterator:
     
         # Each iteration represents a step from
@@ -42,16 +49,16 @@ def main(args):
         
         # Next we calculate the concentrations of A and B at t2
         # given feed rate and consumption from r at t1 to t2
+                
+        #print("\nstart", t_interval)
+        #print(f"C_A1 {r['C_A'][-1]} C_B1 {r['C_B'][-1]}")
         
-        print("\nstart", t_interval)
-        print(f"C_A1 {r['C_A'][-1]} C_B1 {r['C_B'][-1]}")
-        
-        # From time t1 to t2 where t2-t1=d:
-        # C_A(t=t2) = C_A(t=t1) + (C from feed * dt) - (C from r * dt)
-        # need to make sure consumption from r isn't > amount in the tank at t=t2
+        # From time t1 to t2 where t2-t1=dt: (remember r is negative)
+        # C_A(t=t2) = C_A(t=t1) + (C from feed * dt) + (C from r * dt)
+        # need to make sure consumption from r during dt isn't > amount in the tank at t=t2
         C_A = r['C_A'][-1] + t_interval * ((c['F_R']/c['V_R']) * (c['C_Afeed'] - r['C_A'][-1]))
         C_B = r['C_B'][-1] + t_interval * ((c['F_R']/c['V_R']) * -r['C_B'][-1])
-        print(f"Feed/drain: C_A2 {C_A} C_B2 {C_B}")
+        #print(f"Feed/drain: C_A2 {C_A} C_B2 {C_B}")
         # Set to 0 if negative
         C_B = max(C_B, 0)
         C_A = max(C_A, 0)
@@ -60,7 +67,7 @@ def main(args):
         # decrease concentration to below 0
         adjusted_r = -min(C_A/t_interval, C_B/t_interval, -r['r'][-1])
         r['adjusted_r'].append(adjusted_r)
-        print(f"r1 {r['r'][-1]} adj {adjusted_r}")
+        #print(f"r1 {r['r'][-1]} adj {adjusted_r}")
         # Final modifications to C_A C_B from r gives C_A C_B at t2
         r['C_A'].append(C_A + adjusted_r * t_interval)
         r['C_B'].append(C_B + adjusted_r * t_interval)
@@ -68,16 +75,13 @@ def main(args):
         # Next is to calc the rate of reaction at t2 using t2's values
         r['r'].append(calc_r(r, c))
         
-        
         # Now we calculate the power exchange balances for t2 from t2 values
         
         # Power from Q_ER is the amount of r calculated above
         r['Q_ER'].append(300000 * (-adjusted_r) * c['V_R'])
         r['Q_RF'].append(calc_Q_RF(r, c))
         r['Q_FO'].append(calc_Q_FO(r, c))
-        r['Q_OA'].append(c['sbc'] * c['emissivity'] * c['A_Oo']
-                 * ((r['T_O'][-1] + 273.15)**2 + (c['T_A']**2 + 273.15))
-                 * (r['T_O'][-1] - c['T_A']) * (546.3 + r['T_O'][-1] + c['T_A']))
+        r['Q_OA'].append(calc_Q_FA(r, c))
         
         # Cooling energy loss is only if coolant is on if reactants temp over threshold temperature
         threshold_temperature = 100
@@ -227,9 +231,15 @@ def calc_Q_RF(r, c):
 def calc_Q_FO(r, c):
     return c['h_F'] * c['A_Oi'] * (r['T_F'][-1] - r['T_O'][-1])
 
+def calc_Q_OA(r, c):
+    return ( c['sbc'] * c['emissivity'] * c['A_Oo']
+             * ((r['T_O'][-1] + 273.15)**2 + (c['T_A'] + 273.15)**2)
+             * (r['T_O'][-1] - c['T_A']) * (546.3 + r['T_O'][-1] + c['T_A']) )
+
 
 def write_results(r, c):
 
+    # Save all constant values and values for t=0 to constants.txt
     with open("constants.txt", 'w') as f:
     
         f.write("Constants\n")
@@ -240,13 +250,14 @@ def write_results(r, c):
         for k, v in sorted(r.items()):
             f.write(f'{k:20} {v[0]}\n')
             
+    # Save all data at resolution t=t_interval to "data.csv"
     with open("data.csv", 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(r.keys())
         for i in range(len(r['t'])):
             w.writerow(r[k][i] for k in r.keys())
             
-    # also write data for graphing at a certain resolution
+    # Save all data at resolution t=t_interval * 10 to "grpahing.csv"
     with open("graphing.csv", 'w', newline='') as f:
         w = csv.writer(f)
         w.writerow(r.keys())
