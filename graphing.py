@@ -3,13 +3,14 @@ import csv
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def main():
     with open("graphing.csv", 'r') as f:
         reader = csv.reader(f)
         r_iter = iter(reader)
         header = next(r_iter)
         
-        data = { k : [] for k in header}
+        data = {k: [] for k in header}
         for i, row in enumerate(r_iter):
             if i % 10 != 0:
                 continue
@@ -18,76 +19,80 @@ def main():
 
     for k in data.keys():
         print(f'{k:15} min {min(data[k]):15.6f} max {max(data[k]):15.6f}')   
-        
-    plot_q(data)
-    plot_rate(data)
-    plot_temp(data)
-    
-def plot_q(data):
-    # Prepare the data
+
+    multi_plot(data)
+
+
+def multi_plot(data):
+    fig, axs = plt.subplots(2, 2)
+
+    # x axis
     x = [d/60 for d in data['t']]
-    
-    # Plot the normalized values
-    
-    plt.plot(x, data['Q_ER'], label='Q_ER')
-    #plt.plot(x, data['Q_RF'], label='Q_RF')
-    #plt.plot(x, data['Q_FO'], label='Q_FO')
-    #plt.plot(x, data['Q_OA'], label='Q_OA')
-    #plt.plot(x, data['Q_FC'], label='Q_FC')
-    
-    plt.xlim((0, 30))
-    plt.xticks(np.arange(0, 30, 1))
+    y = [np.sin(x ** 2) for x in x] # placeholder
 
-    plt.legend()
 
-    plt.show()
-
-def plot_temp(data):
-    # Prepare the data
-    x = [d/60 for d in data['t']]
-    y1 = data['T_R']
-    y2 = data['T_F']
-    y3 = data['T_O']
+    # Temperature
+    T_R = data['T_R']
+    T_F = data['T_F']
+    T_O = data['T_O']
 
     # Plot the data
-    plt.plot(x, y1, label='T_R')
-    plt.plot(x, y2, label='T_F')
-    plt.plot(x, y3, label='T_O')
-    plt.xlim((0, 30))
-    plt.xticks(np.arange(0, 30, 2))
-    plt.ylim((0, 30))
-    plt.yticks(np.arange(0, 70,5))
+    axs[0, 0].plot(x, T_R, color='red', label='T_R')
+    axs[0, 0].plot(x, T_O, color='green', label='T_O')
+    axs[0, 0].plot(x, T_F, color='blue', label='T_F')
 
-    plt.legend()
+    axs[0, 0].set_ylim(bottom=0)
+
+
+    # Concentration / Rate
+
+    # Left y axis
+    C_A = data['C_A']
+    C_B = data['C_B']
+
+    axs[0, 1].plot(x, C_A, color='red', label='C_A')
+    axs[0, 1].plot(x, C_B, color='blue', label='C_B')
+
+    axs[0, 1].set_ylim(bottom=0)
+
+    # right y axis
+    r = data['r']
+    adj_r = data['adjusted_r']
+
+    ax01_2 = axs[0, 1].twinx()
+    ax01_2.plot(x, r, color='black', label='r')
+    ax01_2.plot(x, adj_r, color='grey', label='r_adj')
+
+    ax01_2.set_ylim(top=0)
+    ax01_2.legend(loc='upper center', frameon=False, fontsize='x-small')
+
+
+    # Power
+
+    powers = ['Q_ER', 'Q_RF', 'Q_FO', 'Q_FC', 'Q_OA']
+    y_powers = [data[s] for s in powers]
+
+    for y, s in zip(y_powers, powers):
+        axs[1, 0].plot(x, y, label=s)
+
+
+    # Last plot unused for now
+
+    # var = data['var']
+    # var2 = data['var2']
+    # axs[1, 1].plot(x, var, color='red', label='var')
+    # axs[1, 1].plot(x, var2, color='red', label='var')
+    # axs[1, 1].set_ylim((0,1000))
+
+
+    # Set xlim and format axis
+    for i in axs:
+        for j in i:
+            j.set_xlim((min(x), max(x)))
+            j.legend(frameon=False, fontsize='x-small', loc='best')
 
     plt.show()
-    
-def plot_rate(data):
-    # Prepare the data
-    x = [d/60 for d in data['t']]
-    y1 = data['C_A']
-    y2 = data['C_B']
-    
-    fig, ax = plt.subplots()
-    ax.plot(x, y1, color='red', label='C_A')
-    ax.plot(x, y2, color='blue', label='C_B')
-    
-    y3 = data['r']
-    y4 = data['adjusted_r']
-    
-    
-    ax2 = ax.twinx()
-    ax2.plot(x, y3, color='green', label='r')
-    ax2.plot(x, y4, color='yellow', label='adj_r')
-    
-    plt.xlim((0, 30))
-    plt.xticks(np.arange(0, 31, 1))
 
-    ax.legend()
-    ax2.legend()
-
-    plt.show()
-    
     
 if __name__ == '__main__':
     main()
