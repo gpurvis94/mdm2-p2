@@ -81,7 +81,7 @@ def main(args):
         r['Q_ER'].append(300000 * (-adjusted_r) * c['V_R'])
         r['Q_RF'].append(calc_Q_RF(r, c))
         r['Q_FO'].append(calc_Q_FO(r, c))
-        r['Q_OA'].append(calc_Q_FA(r, c))
+        r['Q_OA'].append(calc_Q_OA(r, c))
         
         # Cooling energy loss is only if coolant is on if reactants temp over threshold temperature
         threshold_temperature = 100
