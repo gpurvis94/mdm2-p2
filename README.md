@@ -13,8 +13,6 @@ Use this file to generate data. For example:
 This runs the program with the constants and initial values defined in the 
 code. This generates three files.
  - `constants.txt` lists all initial and constant values used.
- - `data.csv` a csv containing every recorded data point. The default time 
- interval is 0.01 seconds so this file is large.
  - `graphing.csv` lists every tenth data point, a resolution of 0.1 
  seconds, which makes the file less 
  time consuming to parse when reading for graphing purposes.
@@ -33,7 +31,7 @@ To see which variables can be assigned to using the command line search
  ### graphing.py
  Run this script without any command line params.
  
- `$ python grpahing.py`
+ `$ python graphing.py`
  
  This file reads `graphing.csv` and generates graphs displaying 
  temperatures, concentrations & rates of reaction, and powers. The 4th 

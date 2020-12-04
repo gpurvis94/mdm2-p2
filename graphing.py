@@ -75,6 +75,10 @@ def multi_plot(data):
     for y, s in zip(y_powers, powers):
         axs[1, 0].plot(x, y, label=s)
 
+    # y axis needs to be logarithmic
+    # axs[1, 0].set_yscale('log')
+    # axs[1, 0].set_ylim((0, 10**5))
+
 
     # Last plot unused for now
 
