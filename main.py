@@ -230,7 +230,6 @@ def dT_Odt(r, c):
 
 
 def calc_r(r, c, C_A, C_B):
-    # r is in moles per m3
     return (-c['B'] * C_A * C_B *
             np.e**(-c['E_a'] / (c['R']*(r['T_R'][-1] + 273.15))))
     
