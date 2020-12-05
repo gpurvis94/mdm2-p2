@@ -25,14 +25,15 @@ def main(args):
     # x axis time values
     dt = 0.01
     t_min = 0    # This is inclusive
-    t_max = 600  # Not inclusive
+    t_feed_max = 600
+    t_max = 900  # Not inclusive
     t = np.arange(t_min, t_max + dt, dt)
 
     # Containers for constant values and results lists.
     # c maps a 'str' : value, r maps a 'str' : [list of results]
     c = {}
     r = {'t': t}
-    initialise_variables(r, c, t_max, cmd_line_param)
+    initialise_variables(r, c, t_feed_max, cmd_line_param)
 
     # Skip the first value in t as values for 0 are defined
     t_iterator = iter(t)
@@ -50,31 +51,31 @@ def main(args):
         r['T_F'].append(r['T_F'][-1] + dt * dT_Fdt(r, c))
         r['T_O'].append(r['T_O'][-1] + dt * dT_Odt(r, c))
 
-        # Calculate the concentrations of A and B at t2 given feed rate and consumption from r
+        # Update properties dependent upon reactants area
+        r['V_R'].append(r['V_R'][-1] + dt * dV_Rdt(r, c, time, t_feed_max))
+        r['m_R'].append(c['rho_R'] * r['V_R'][-1])
+        r['A_Ii'].append((2 * r['V_R'][-1]) / c['r_Ii'])
+        r['U'].append(calc_U(r, c))
 
-        # C_A(t=t2) = C_A(t=t1) + (C from feed * dt) + (C from r * dt)   Note r is negative
-        C_A = r['C_A'][-1] + dt * ((c['F_R']/c['V_R']) * (c['C_Afeed'] - r['C_A'][-1]))
-        C_B = r['C_B'][-1] + dt * ((c['F_R']/c['V_R']) * -r['C_B'][-1])
+        # Mass of reactants in tank after flow in/out, & mass of reactants consumed
+        F_Rin = 0 if time > t_feed_max else c['F_Rin']
+        F_Rout = 0 if time > t_feed_max else c['F_Rout']
+        m_A = r['C_A'][-1]*r['V_R'][-2] + dt*(F_Rin*c['C_Afeed'] - F_Rout*r['C_A'][-1])
+        m_B = r['C_B'][-1]*r['V_R'][-2] + dt*(F_Rin*c['C_Bfeed'] - F_Rout*r['C_B'][-1])
+        m_r = min(dt * -r['r'][-1] * r['V_R'][-2], m_A, m_B)
 
-        # If r >> C, then concentrations may be negative, so set to zero
-        C_A = max(C_A, 0)
-        C_B = max(C_B, 0)
+        # Concentrations of reactants after mass & volume updates
+        r['C_A'].append((m_A - m_r)/r['V_R'][-1])
+        r['C_B'].append((m_B - m_r)/r['V_R'][-1])
 
         # Calc the rate of reaction at t2 after t1->t2 materials added
-        r['r'].append(calc_r(r, c, C_A, C_B))
-
-        # The adjusted_r is used to calculate energy production if r consumes
-        adjusted_r = -min(C_A/dt, C_B/dt, -r['r'][-1])
-        r['adjusted_r'].append(adjusted_r)
-
-        # Final modifications to C_A C_B from adjusted_r gives C_A C_B at t2
-        r['C_A'].append(C_A + adjusted_r * dt)
-        r['C_B'].append(C_B + adjusted_r * dt)
+        r['r'].append(calc_r(r, c))
+        r['adjusted_r'].append(-m_r/(r['V_R'][-1] * dt))
 
         # Now we calculate the power exchange balances for t2 from t2 values
 
         # Power from Q_ER is the amount of r calculated above
-        r['Q_ER'].append(300000 * (-adjusted_r) * c['V_R'])
+        r['Q_ER'].append(300000 * m_r/dt)
         r['Q_RF'].append(calc_Q_RF(r, c))
         r['Q_FO'].append(calc_Q_FO(r, c))
         r['Q_OA'].append(calc_Q_OA(r, c))
@@ -105,7 +106,7 @@ def main(args):
     write_results(r, c)
 
 
-def initialise_variables(r, c, t_max, param):
+def initialise_variables(r, c, t_feed_max, param):
 
     # Checks if user defined custom value, returns "default" if no "var_name" in cmd line params
     get_user_value = lambda default, var_name: default if var_name not in param else param[var_name]
@@ -128,12 +129,13 @@ def initialise_variables(r, c, t_max, param):
     
     # The volume of the tank is defined as 10L. Given that the reactants
     # have a padding of air, the volume of reactants is assumed 95% 10L
-    c['V_R'] = 0.95 * c['V_T']
-    c['L_R'] = c['V_R'] / (np.pi * c['r_Ii']**2)
+    r['V_R'] = [0.5 * c['V_T']]
+    # L_R is not constant but there's no point tracking results for it
+    c['L_R'] = [r['V_R'][-1] / (np.pi * c['r_Ii']**2)]
     
     # These areas are used for heat transfer so the area in contact
     # with fluid is required, so reactant height is used for inside
-    c['A_Ii'] = 2 * np.pi * (c['r_Ii']) * (c['L_R'])
+    r['A_Ii'] = [2 * np.pi * (c['r_Ii']) * (c['L_R'][-1])]
     
     c['r_Io'] = c['r_Ii'] + c['width_J_wall']
     c['A_Io'] = 2 * np.pi * (c['r_Io']) * (c['L_J'])
@@ -156,10 +158,7 @@ def initialise_variables(r, c, t_max, param):
     c['h_F'] = get_user_value(2000, 'h_F')  # todo
 
     # Overall heat transfer coefficient
-    # todo A_Ii and L_J values - inside area different L value to outside area???
-    c['U'] = 1 / ((1 / (c['h_R'] * c['A_Ii']))
-                  + (np.log(c['r_Io']/c['r_Ii']) / (2 * np.pi * c['L_J'] * c['k_J']))
-                  + (1 / (c['h_F'] * c['A_Io'])))
+    r['U'] = [calc_U(r, c)]
 
     # Specific heats
     c['c_R'] = get_user_value(4184, 'c_R')
@@ -172,7 +171,7 @@ def initialise_variables(r, c, t_max, param):
     c['rho_J'] = get_user_value(8050, 'rho_J')  # Density of jacket wall material (steel)
     
     # Masses = density * volume
-    c['m_R'] = c['rho_R'] * c['V_R']
+    r['m_R'] = [c['rho_R'] * r['V_R'][-1]]
     c['m_F'] = c['rho_F'] * c['V_F']
     c['m_O'] = c['rho_J'] * c['V_O']  # only outer jacket volume required
 
@@ -182,16 +181,18 @@ def initialise_variables(r, c, t_max, param):
     # Flow rates and concentrations
 
     # Concentrations of A in feed (F_R = feed rate in = out of tank)
-    # todo: for now the feed rate is assumed to "replace" the tank over 30mins
-    c['F_R'] = c['V_R'] / t_max
+    # todo: for now the feed rate is assumed to "fill" the tank over t_max
+    c['F_Rin'] = (c['V_T'] - r['V_R'][-1]) / t_feed_max
+    c['F_Rout'] = 0
     c['C_Afeed'] = get_user_value(1000, 'C_Afeed')  # todo, kg per m3
-    
+    c['C_Bfeed'] = get_user_value(0, 'C_Bfeed')  # todo, kg per m3
+
     # Temperature & flow rate of coolant (approximated as 10% jacket volume/s)
     c['T_C'] = get_user_value(10, 'T_C')
     c['F_C'] = 0.1 * c['V_F']
 
     # Pump temperature thresholds and minimum run time
-    c['T_thresh'] = get_user_value(30, 'T_thresh')
+    c['T_thresh'] = get_user_value(35, 'T_thresh')
     c['min_pump_uptime'] = get_user_value(10, 'min_pump_uptime')
     
     # Rates of reaction constants
@@ -218,7 +219,7 @@ def initialise_variables(r, c, t_max, param):
 
 
 def dT_Rdt(r, c):
-    return (r['Q_ER'][-1] + c['Q_SR'] - r['Q_RF'][-1]) / (c['m_R'] * c['c_R'])
+    return (r['Q_ER'][-1] + c['Q_SR'] - r['Q_RF'][-1]) / (r['m_R'][-1] * c['c_R'])
 
 
 def dT_Fdt(r, c):
@@ -229,13 +230,31 @@ def dT_Odt(r, c):
     return (r['Q_FO'][-1] - r['Q_OA'][-1]) / (c['m_O'] * c['c_O'])
 
 
-def calc_r(r, c, C_A, C_B):
-    return (-c['B'] * C_A * C_B *
+def dV_Rdt(r, c, time, t_feed_max):
+    return get_F_Rin(r, c, time, t_feed_max) - get_F_Rout(r, c, time, t_feed_max)
+
+
+def get_F_Rin(r, c, time, t_feed_max):
+    return 0 if time > t_feed_max else c['F_Rin']
+
+
+def get_F_Rout(r, c, time, t_feed_max):
+    return 0 if time > t_feed_max else c['F_Rout']
+
+
+def calc_U(r, c):
+    return 1 / ((1 / (c['h_R'] * r['A_Ii'][-1]))
+                   + (np.log(c['r_Io']/c['r_Ii']) / (2 * np.pi * c['L_J'] * c['k_J']))
+                   + (1 / (c['h_F'] * c['A_Io'])))
+
+
+def calc_r(r, c):
+    return (-c['B'] * r['C_A'][-1] * r['C_B'][-1] *
             np.e**(-c['E_a'] / (c['R']*(r['T_R'][-1] + 273.15))))
     
 
 def calc_Q_RF(r, c):
-    return c['U'] * (r['T_R'][-1] - r['T_F'][-1])
+    return r['U'][-1] * (r['T_R'][-1] - r['T_F'][-1])
 
 
 def calc_Q_FO(r, c):
