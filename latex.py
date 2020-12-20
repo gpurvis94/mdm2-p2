@@ -12,6 +12,8 @@ with open("graphing.csv", 'r') as f:
         for k, value in zip(header, row):
             if k == 't':
                 data[k].append(round(float(value)/60, 3))
+            elif k[0] == 'Q':
+                data[k].append(round(float(value), 0))
             else:
                 data[k].append(round(float(value), 3))
 

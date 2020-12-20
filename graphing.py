@@ -80,12 +80,10 @@ def multi_plot(data):
     axs[1, 0].set_ylim((0, 10**5))
 
 
-    # Last plot unused for now
+    # Last plot for volume
 
     var = data['V_R']
-    #var2 = data['var2']
     axs[1, 1].plot(x, var, color='red', label='V_R')
-    #axs[1, 1].plot(x, var2, color='red', label='var')
 
 
     # Set xlim and format axis

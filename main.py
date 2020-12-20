@@ -7,6 +7,17 @@ from graphing import multi_plot
 
 def main(args):
 
+    # Iterate the model
+    r, c = iterate(args)
+
+    # graphing
+    write_initial_conditions(r, c)
+    graph_results(r, c)
+    write_results(r, c)
+
+
+def iterate(args):
+
     # Read command line parameters for later use
     cmd_line_param = {}
     if len(args) > 0:
@@ -42,6 +53,7 @@ def main(args):
     # Enter the iterative loop
     pump_active = False
     time_pump_active = 0
+    total_time_pump_active = 0
     for time in t_iterator:
 
         # Each iteration represents a step from t1 to t2 where dt = t2 - t1
@@ -90,20 +102,21 @@ def main(args):
                     time_pump_active = 0
                 else:
                     time_pump_active += dt
+                    c['total_time_pump_active'] += dt
             else:
                 # If the pump hasn't been on long enough, continue running
                 time_pump_active += dt
+                c['total_time_pump_active'] += dt
         else:
             if r['T_R'][-1] > c['T_thresh']:
                 pump_active = True
                 time_pump_active = dt
+                c['total_time_pump_active'] += dt
 
         # If the pump is active then calculate energy loss to coolant flow
         r['Q_FC'].append(calc_Q_FC(r, c, pump_active))
 
-    write_initial_conditions(r, c)
-    graph_results(r, c)
-    write_results(r, c)
+    return r, c
 
 
 def initialise_variables(r, c, t_feed_max, param):
@@ -182,7 +195,8 @@ def initialise_variables(r, c, t_feed_max, param):
 
     # Concentrations of A in feed (F_R = feed rate in = out of tank)
     # todo: for now the feed rate is assumed to "fill" the tank over t_max
-    c['F_Rin'] = (c['V_T'] - r['V_R'][-1]) / t_feed_max
+    #c['F_Rin'] = 10*((0.005) / 600)
+    c['F_Rin'] = get_user_value((c['V_T'] - r['V_R'][-1]) / t_feed_max, 'F_Rin')
     c['F_Rout'] = 0
     c['C_Afeed'] = get_user_value(1000, 'C_Afeed')  # todo, kg per m3
     c['C_Bfeed'] = get_user_value(0, 'C_Bfeed')  # todo, kg per m3
@@ -196,7 +210,8 @@ def initialise_variables(r, c, t_feed_max, param):
     c['min_pump_uptime'] = get_user_value(10, 'min_pump_uptime')
     
     # Rates of reaction constants
-    c['B'] = 10**5  # todo
+    #c['B'] = 0.7 * 10**4  # USE THIS VALUE FOR INITIAL TEST
+    c['B'] = 1 * 10**5  # USE THIS VALUE FOR VARIABLE VARIATION
     c['E_a'] = 51217  # calculated for a value of 300 kelvins
     
     # Initial values for iteration
@@ -216,6 +231,9 @@ def initialise_variables(r, c, t_feed_max, param):
     r['Q_FO'] = [calc_Q_FO(r, c)]
     r['Q_FC'] = [0]
     r['Q_OA'] = [0]
+
+    # Extra stuff
+    c['total_time_pump_active'] = 0
 
 
 def dT_Rdt(r, c):
